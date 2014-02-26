@@ -104,7 +104,7 @@ public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], 
 {
 	new FilterArray[FilterData];
 	new String:sBuffer[3][32];
-	if(StrContains(value, ":")>=0)
+	if(StrContains(value, ":")!=-1)
 	{
 		ExplodeString(value, ":", sBuffer, 3, 32);
 		FilterArray[Team]  = (StrEqual(sBuffer[0], "", false)) ? 0 : StringToInt(sBuffer[0]);
