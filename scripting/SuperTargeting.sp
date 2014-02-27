@@ -13,20 +13,21 @@ new Handle:ConfigArray = INVALID_HANDLE;
 enum FilterData
 {
 	String:Filter[24],
+	String:Text[32],
 	Team,
-	Class
-	//Alive - 0 any, 1 alive, 2 dead
-	//Condition - If a player is in these certain condition
+	Class,
+	Alive,
+	Cond
 };
 
 // ====[ PLUGIN ]==============================================================
 public Plugin:myinfo =
 {
 	name = "Super Target Filters",
-	author = "ReFlexPoison, Mitch",
+	author = "Mitch",
 	description = "Addition to the classes server owners can now define new target filters based on classes, teams, etc.",
 	version = PLUGIN_VERSION,
-	url = "http://www.sourcemod.net"
+	url = "https://bitbucket.org/MitchDizzle/super-targeting/"
 }
 
 public APLRes:AskPluginLoad2(Handle:hMyself, bool:bLate, String:strError[], iErrMax)
@@ -73,15 +74,18 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 	new bool:PlayerMatchesCriteria;
 	for(new i = 1; i <= MaxClients; i ++) if(IsClientInGame(i))
 	{
-		if(!IsPlayerAlive(i))
-			continue;
 		PlayerMatchesCriteria = true;
-		if(FilterArray[Class] != 0 && TF2_GetPlayerClass(i) != TFClassType:FilterArray[Class])
+		if( ( FilterArray[Alive] == 0 && IsPlayerAlive(i) ) || ( FilterArray[Alive] == 1 && !IsPlayerAlive(i) ) )
 			PlayerMatchesCriteria = false;
-		if(FilterArray[Team] != 0 && GetClientTeam(i) != FilterArray[Team])
+		if( FilterArray[Class] != 0 && TF2_GetPlayerClass(i) != TFClassType:FilterArray[Class] )
 			PlayerMatchesCriteria = false;
-		if(bOpposite) PlayerMatchesCriteria = !PlayerMatchesCriteria;
-		if(PlayerMatchesCriteria) PushArrayCell(hClients, i);
+		if( FilterArray[Team] != 0 && GetClientTeam(i) != FilterArray[Team] )
+			PlayerMatchesCriteria = false;
+		if( FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond]) )
+			PlayerMatchesCriteria = false;
+		
+		if( bOpposite ) PlayerMatchesCriteria = !PlayerMatchesCriteria;
+		if( PlayerMatchesCriteria ) PushArrayCell(hClients, i);
 	}
 	return true;
 }
@@ -90,27 +94,27 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 // ====[ Config Functions ]====================================================
 public LoadFilterConfig()
 {
-	ConfigArray = CreateArray(26);
-	new Handle:SMC = SMC_CreateParser(); 
-	SMC_SetReaders(SMC, NewSection, KeyValue, EndSection); 
+	ConfigArray = CreateArray(60);
 	decl String:sPaths[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/SuperTargeting.cfg");
-	SMC_ParseFile(SMC, sPaths);
-	CloseHandle(SMC);
-}
-public SMCResult:NewSection(Handle:smc, const String:name[], bool:opt_quotes) { }
-public SMCResult:EndSection(Handle:smc) { }  
-public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], bool:key_quotes, bool:value_quotes) 
-{
+	new Handle:kv = CreateKeyValues("SuperTargeting");
+	FileToKeyValues(kv, sPaths);
+	if (!KvGotoFirstSubKey(kv))
+		return;
+	
 	new FilterArray[FilterData];
-	new String:sBuffer[3][32];
-	if(StrContains(value, ":")!=-1)
+	do
 	{
-		ExplodeString(value, ":", sBuffer, 3, 32);
-		FilterArray[Team]  = (StrEqual(sBuffer[0], "", false)) ? 0 : StringToInt(sBuffer[0]);
-		FilterArray[Class] = (StrEqual(sBuffer[1], "", false)) ? 0 : StringToInt(sBuffer[1]);
-	}
-	strcopy(FilterArray[Filter], 24, key);
-	PushArrayArray(ConfigArray, FilterArray[0]);
-	AddMultiTargetFilter(FilterArray[Filter], FilterClasses, sBuffer[2], false);
+		KvGetSectionName(kv, FilterArray[Filter], 24);
+		KvGetString(kv, "text", FilterArray[Text], 32, "TOOLTIP MISSING");
+		FilterArray[Team] = 	KvGetNum(kv, "team", 0);
+		FilterArray[Class] = 	KvGetNum(kv, "class", 0);
+		FilterArray[Alive] = 	KvGetNum(kv, "alive", -1);
+		FilterArray[Cond] = 	KvGetNum(kv, "cond", -1);
+		//PrintToChatAll("%s : %i,%i,%i,%i : %s", FilterArray[Filter], FilterArray[Team], FilterArray[Class], FilterArray[Alive], FilterArray[Cond], FilterArray[Text]);
+		PushArrayArray(ConfigArray, FilterArray[0]);
+		AddMultiTargetFilter(FilterArray[Filter], FilterClasses, FilterArray[Text], false);
+	} while(KvGotoNextKey(kv));
+	CloseHandle(kv);
+	return;
 }
