@@ -66,7 +66,12 @@ Teams:
 
 Below this is an example that will target all scouts
 ```sourcepawn
-"@scout"    		"0:1:all Scouts"
+"@scout"
+{
+	 "text"		"all Scouts"
+	 "team"		"0"
+	 "class"		"1"
+}
 When used it will display: ***** all Scouts.
 i.e.: [SM] Slayed all Scouts.
 ```
