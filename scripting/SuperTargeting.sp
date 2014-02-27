@@ -90,7 +90,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 // ====[ Config Functions ]====================================================
 public LoadFilterConfig()
 {
-	ConfigArray = CreateArray(ByteCountToCells(24)+2);
+	ConfigArray = CreateArray(26);
 	new Handle:SMC = SMC_CreateParser(); 
 	SMC_SetReaders(SMC, NewSection, KeyValue, EndSection); 
 	decl String:sPaths[PLATFORM_MAX_PATH];
