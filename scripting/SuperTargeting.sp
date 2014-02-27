@@ -125,7 +125,7 @@ public LoadFilterConfig()
 }
 
 // ====[ Updater ]=============================================================
-#define UPDATE_URL "http://mitchdizzle.bitbucket.org/supertargeting.txt"
+#define UPDATE_URL "http://bitbucket.snbx.info/super-targeting/raw/master/supertargeting.txt"
 public OnAllPluginsLoaded() {
 	if (LibraryExists("updater"))
 		Updater_AddPlugin(UPDATE_URL);
