@@ -1,0 +1,20 @@
+"Updater"
+{
+	"Information"
+	{
+		"Version"
+		{
+			"Latest"	"1.1.0"
+		}
+		"Notes"	"Reframed the config for future uses."
+		"Notes"	"Added Alive checking"
+		"Notes"	"Added Condition checking"
+		"Notes" "Be sure to check out SuperTargeting.SnBx.info for more infomation."
+	}
+	
+	"Files"
+	{
+		"Plugin"	"Path_SM/plugins/SuperTargeting.smx"
+		"Source"	"Path_SM/scripting/SuperTargeting.sp"
+	}
+}
