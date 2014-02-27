@@ -27,12 +27,17 @@ Configuration
 
 
 The format is so:
-```sourcepawn
-"@<filtername>"        	"<team>:<class>:<language text>"
+```text
+"@<filtername>"
+{
+	 "text"		"<language text>"
+	 "team"		"<team>"
+	 "class"	"<class>"
+}
 ```
 
 Here is what can be put into each one:
-```sourcepawn
+```text
 <filtername> : this can be anything, but i would refrain from making it anything that is already in use. Start it off with an exclamation point (!) to negate the filter
 <team>  : this can be 0 to 3, anything else it will ignore the filter. Set to 0 to ignore the team number.
 <class> : this is a number from 0 to 9, anything other than that the filter will be ignored.
@@ -40,7 +45,7 @@ Here is what can be put into each one:
 ```
 
 List of all the class/team numbers:
-```sourcepawn
+```text
 Classes:
 0 : Any Class
 1 : Scout
