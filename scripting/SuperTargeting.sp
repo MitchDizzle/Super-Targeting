@@ -3,10 +3,12 @@
 // ====[ INCLUDES ]============================================================
 #include <sourcemod>
 #include <tf2_stocks>
+#undef REQUIRE_PLUGIN
+#tryinclude <updater>
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.1.0"
 
 // ====[ CONFIG ]==============================================================
 new Handle:ConfigArray = INVALID_HANDLE;
@@ -21,6 +23,7 @@ enum FilterData
 };
 
 // ====[ PLUGIN ]==============================================================
+new Handle:hCUpdater = INVALID_HANDLE;
 public Plugin:myinfo =
 {
 	name = "Super Target Filters",
@@ -45,6 +48,8 @@ public APLRes:AskPluginLoad2(Handle:hMyself, bool:bLate, String:strError[], iErr
 // ====[ EVENTS ]==============================================================
 public OnPluginStart()
 {
+	hCUpdater = CreateConVar("sm_supertargeting_update", "1", "(0/1) Enable automatic updating?", FCVAR_PLUGIN);
+	AutoExecConfig();
 	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	LoadFilterConfig();
 }
@@ -117,4 +122,23 @@ public LoadFilterConfig()
 	} while(KvGotoNextKey(kv));
 	CloseHandle(kv);
 	return;
+}
+
+// ====[ Updater ]=============================================================
+#define UPDATE_URL "http://mitchdizzle.bitbucket.org/supertargeting.txt"
+public OnAllPluginsLoaded() {
+	if (LibraryExists("updater"))
+		Updater_AddPlugin(UPDATE_URL);
+}
+public OnLibraryAdded(const String:name[]) {
+	if (StrEqual(name, "updater"))
+		Updater_AddPlugin(UPDATE_URL);
+}
+public Action:Updater_OnPluginDownloading() {
+	if (GetConVarBool(hCUpdater))
+		return Plugin_Continue;
+	return Plugin_Handled;
+}
+public Updater_OnPluginUpdated() {
+	ReloadPlugin();
 }
