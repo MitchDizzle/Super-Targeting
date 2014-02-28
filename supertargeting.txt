@@ -4,11 +4,9 @@
 	{
 		"Version"
 		{
-			"Latest"	"1.1.0"
+			"Latest"	"1.2.0"
 		}
-		"Notes"	"Reframed the config for future uses."
-		"Notes"	"Added Alive checking"
-		"Notes"	"Added Condition checking"
+		"Notes"	"Removed TF2 Dependencies."
 		"Notes" "Be sure to check out SuperTargeting.SnBx.info for more infomation."
 	}
 	
