@@ -2,13 +2,16 @@
 
 // ====[ INCLUDES ]============================================================
 #include <sourcemod>
+
+#undef REQUIRE_EXTENSIONS
 #include <tf2_stocks>
+
 #undef REQUIRE_PLUGIN
-#tryinclude <updater>
+#include <updater>
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.1.0"
+#define PLUGIN_VERSION "1.2.0"
 
 // ====[ CONFIG ]==============================================================
 new Handle:ConfigArray = INVALID_HANDLE;
@@ -24,6 +27,7 @@ enum FilterData
 
 // ====[ PLUGIN ]==============================================================
 new Handle:hCUpdater = INVALID_HANDLE;
+new EngineVersion:EVGame;
 public Plugin:myinfo =
 {
 	name = "Super Target Filters",
@@ -32,19 +36,6 @@ public Plugin:myinfo =
 	version = PLUGIN_VERSION,
 	url = "https://bitbucket.org/MitchDizzle/super-targeting/"
 }
-
-public APLRes:AskPluginLoad2(Handle:hMyself, bool:bLate, String:strError[], iErrMax)
-{
-	decl String:strGame[32];
-	GetGameFolderName(strGame, sizeof(strGame));
-	if(!StrEqual(strGame, "tf"))
-	{
-		Format(strError, iErrMax, "This plugin only works for Team Fortress 2");
-		return APLRes_Failure;
-	}
-	return APLRes_Success;
-}
-
 // ====[ EVENTS ]==============================================================
 public OnPluginStart()
 {
@@ -52,6 +43,7 @@ public OnPluginStart()
 	AutoExecConfig();
 	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	LoadFilterConfig();
+	EVGame = GetEngineVersion();
 }
 
 public OnPluginEnd()
@@ -82,11 +74,11 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 		PlayerMatchesCriteria = true;
 		if( ( FilterArray[Alive] == 0 && IsPlayerAlive(i) ) || ( FilterArray[Alive] == 1 && !IsPlayerAlive(i) ) )
 			PlayerMatchesCriteria = false;
-		if( FilterArray[Class] != 0 && TF2_GetPlayerClass(i) != TFClassType:FilterArray[Class] )
+		if( FilterArray[Class] != 0 && GetEntProp(i, Prop_Send, "m_iClass") != FilterArray[Class] )
 			PlayerMatchesCriteria = false;
 		if( FilterArray[Team] != 0 && GetClientTeam(i) != FilterArray[Team] )
 			PlayerMatchesCriteria = false;
-		if( FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond]) )
+		if(EVGame == Engine_TF2 && FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond]) )
 			PlayerMatchesCriteria = false;
 		
 		if( bOpposite ) PlayerMatchesCriteria = !PlayerMatchesCriteria;
