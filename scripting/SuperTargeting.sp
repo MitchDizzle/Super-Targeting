@@ -11,14 +11,13 @@
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.2.0"
+#define PLUGIN_VERSION "1.3.0b"
 
 // ====[ CONFIG ]==============================================================
 new Handle:ConfigArray = INVALID_HANDLE;
 enum FilterData
 {
 	String:Filter[24],
-	String:Text[32],
 	Team,
 	Class,
 	Alive,
@@ -72,14 +71,33 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 	for(new i = 1; i <= MaxClients; i ++) if(IsClientInGame(i))
 	{
 		PlayerMatchesCriteria = true;
+		//Filter Checks
+		//Alive
+		/*
 		if( ( FilterArray[Alive] == 0 && IsPlayerAlive(i) ) || ( FilterArray[Alive] == 1 && !IsPlayerAlive(i) ) )
 			PlayerMatchesCriteria = false;
-		if( FilterArray[Class] != 0 && GetEntProp(i, Prop_Send, "m_iClass") != FilterArray[Class] )
+		*/
+			
+		if( FilterArray[Alive] > -1 && bool:FilterArray[Alive] == IsPlayerAlive(i) )
 			PlayerMatchesCriteria = false;
+		
+		//Class
+		if( FilterArray[Class] != 0 )
+		{
+			if( Is_iPlayerClass() && GetEntProp(i, Prop_Send, "m_iPlayerClass") != FilterArray[Class] )
+				PlayerMatchesCriteria = false;
+			if( Is_iClass() && GetEntProp(i, Prop_Send, "m_iClass") != FilterArray[Class] )
+				PlayerMatchesCriteria = false;
+		}
+		//Team
 		if( FilterArray[Team] != 0 && GetClientTeam(i) != FilterArray[Team] )
 			PlayerMatchesCriteria = false;
-		if(EVGame == Engine_TF2 && FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond]) )
+		//TF2: Conditions
+		if( EVGame == Engine_TF2 && FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond]) )
 			PlayerMatchesCriteria = false;
+		//TF2: Premium
+		
+		//Flags
 		
 		if( bOpposite ) PlayerMatchesCriteria = !PlayerMatchesCriteria;
 		if( PlayerMatchesCriteria ) PushArrayCell(hClients, i);
@@ -91,7 +109,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 // ====[ Config Functions ]====================================================
 public LoadFilterConfig()
 {
-	ConfigArray = CreateArray(60);
+	ConfigArray = CreateArray(28); // 24 + 1 + 1 + 1 + 1
 	decl String:sPaths[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/SuperTargeting.cfg");
 	new Handle:kv = CreateKeyValues("SuperTargeting");
@@ -100,17 +118,30 @@ public LoadFilterConfig()
 		return;
 	
 	new FilterArray[FilterData];
+	decl String:sText[32];
 	do
 	{
 		KvGetSectionName(kv, FilterArray[Filter], 24);
-		KvGetString(kv, "text", FilterArray[Text], 32, "TOOLTIP MISSING");
+		KvGetString(kv, "text", sText, 32, "TOOLTIP MISSING");
 		FilterArray[Team] = 	KvGetNum(kv, "team", 0);
 		FilterArray[Class] = 	KvGetNum(kv, "class", 0);
 		FilterArray[Alive] = 	KvGetNum(kv, "alive", -1);
 		FilterArray[Cond] = 	KvGetNum(kv, "cond", -1);
-		//PrintToChatAll("%s : %i,%i,%i,%i : %s", FilterArray[Filter], FilterArray[Team], FilterArray[Class], FilterArray[Alive], FilterArray[Cond], FilterArray[Text]);
+		//FilterArray[Prem] = 	KvGetNum(kv, "premium", -1);
+		AddMultiTargetFilter(FilterArray[Filter], FilterClasses, sText, false);
+		//KvGetString(kv, "flag", sText, 8, "");
+		
+		/*
+		
+		"flag"		"a" 	//targets players that have the flag of 'a'.
+		"flag"		"ab" 	//targets players that have the flag of both 'a' and 'b'.
+		"flag"		"#a"	//Targets players that ONLY have flag 'a'.
+		"flag"		"#ab"	//Targets players that ONLY have both flags 'a' and 'b'.
+		
+		*/
+		
+		
 		PushArrayArray(ConfigArray, FilterArray[0]);
-		AddMultiTargetFilter(FilterArray[Filter], FilterClasses, FilterArray[Text], false);
 	} while(KvGotoNextKey(kv));
 	CloseHandle(kv);
 	return;
@@ -134,3 +165,7 @@ public Action:Updater_OnPluginDownloading() {
 public Updater_OnPluginUpdated() {
 	ReloadPlugin();
 }
+
+// ====[ Stocks ]=============================================================
+#define Is_iClass() (EVGame == Engine_TF2)
+#define Is_iPlayerClass() (EVGame == Engine_DODS || EVGame == Engine_Left4Dead || EVGame == Engine_Left4Dead2)
