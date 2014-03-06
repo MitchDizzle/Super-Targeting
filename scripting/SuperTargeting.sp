@@ -11,7 +11,7 @@
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.3.0b"
+#define PLUGIN_VERSION "1.3.0"
 
 // ====[ CONFIG ]==============================================================
 new Handle:ConfigArray = INVALID_HANDLE;
@@ -21,6 +21,7 @@ enum FilterData
 	Team,
 	Class,
 	Alive,
+	Bots,
 	Cond
 };
 
@@ -74,8 +75,12 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 	{
 		PlayerMatchesCriteria = true;
 		//Filter Checks
+		//Bots
+		if( FilterArray[Bots] > -1 && bool:FilterArray[Bots] != IsFakeClient(i) )
+			PlayerMatchesCriteria = false;
+		
 		//Alive			
-		if( FilterArray[Alive] > -1 && bool:FilterArray[Alive] == IsPlayerAlive(i) )
+		if( FilterArray[Alive] > -1 && bool:FilterArray[Alive] != IsPlayerAlive(i) )
 			PlayerMatchesCriteria = false;
 		
 		//Class
@@ -106,7 +111,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 // ====[ Config Functions ]====================================================
 public LoadFilterConfig()
 {
-	ConfigArray = CreateArray(28); // 24 + 1 + 1 + 1 + 1
+	ConfigArray = CreateArray(29); // 24 + 1 + 1 + 1 + 1
 	decl String:sPaths[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/SuperTargeting.cfg");
 	new Handle:kv = CreateKeyValues("SuperTargeting");
@@ -123,6 +128,7 @@ public LoadFilterConfig()
 		FilterArray[Team] = 	KvGetNum(kv, "team", 0);
 		FilterArray[Class] = 	KvGetNum(kv, "class", 0);
 		FilterArray[Alive] = 	KvGetNum(kv, "alive", -1);
+		FilterArray[Bots] = 	KvGetNum(kv, "bots", -1);
 		FilterArray[Cond] = 	KvGetNum(kv, "cond", -1);
 		//FilterArray[Prem] = 	KvGetNum(kv, "premium", -1);
 		AddMultiTargetFilter(FilterArray[Filter], FilterClasses, sText, false);
