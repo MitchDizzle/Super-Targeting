@@ -27,6 +27,8 @@ enum FilterData
 // ====[ PLUGIN ]==============================================================
 new Handle:hCUpdater = INVALID_HANDLE;
 new EngineVersion:EVGame;
+#define Is_iClass() (EVGame == Engine_TF2)
+#define Is_iPlayerClass() (EVGame == Engine_DODS || EVGame == Engine_Left4Dead || EVGame == Engine_Left4Dead2)
 public Plugin:myinfo =
 {
 	name = "Super Target Filters",
@@ -72,12 +74,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients)
 	{
 		PlayerMatchesCriteria = true;
 		//Filter Checks
-		//Alive
-		/*
-		if( ( FilterArray[Alive] == 0 && IsPlayerAlive(i) ) || ( FilterArray[Alive] == 1 && !IsPlayerAlive(i) ) )
-			PlayerMatchesCriteria = false;
-		*/
-			
+		//Alive			
 		if( FilterArray[Alive] > -1 && bool:FilterArray[Alive] == IsPlayerAlive(i) )
 			PlayerMatchesCriteria = false;
 		
@@ -167,5 +164,3 @@ public Updater_OnPluginUpdated() {
 }
 
 // ====[ Stocks ]=============================================================
-#define Is_iClass() (EVGame == Engine_TF2)
-#define Is_iPlayerClass() (EVGame == Engine_DODS || EVGame == Engine_Left4Dead || EVGame == Engine_Left4Dead2)
