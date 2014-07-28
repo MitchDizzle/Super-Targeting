@@ -147,8 +147,8 @@ public LoadFilterConfig()
 			FilterArray[OnlyFlag] = (StrContains(sText, "#") != -1) ? true : false;
 			ReplaceString(sText, sizeof(sText), "#", "");
 			FilterArray[Flag] = ReadFlagString(sText);
-			PrintToChatAll("%s : %i", sText, FilterArray[Flag]);
-		}		
+			//PrintToChatAll("%s : %i", sText, FilterArray[Flag]);
+		}
 		PushArrayArray(ConfigArray, FilterArray[0]);
 	} while(KvGotoNextKey(kv));
 	CloseHandle(kv);
