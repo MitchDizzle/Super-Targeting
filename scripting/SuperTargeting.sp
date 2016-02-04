@@ -11,7 +11,8 @@
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.3.6"
+#define PLUGIN_VERSION "1.4.0"
+
 // ====[ CONFIG ]==============================================================
 new Handle:ConfigArray = INVALID_HANDLE;
 enum FilterData
@@ -25,9 +26,13 @@ enum FilterData
 	Flag,
 	bool:OnlyFlag,
 	Rnd,
-	Invert
+	Invert,
+	Self
 };
-#define FA_MAX 		33
+#define FA_MAX 		34
+// ====[ PLAYER ]==============================================================
+new clientLastUsed = -1;
+new Float:timeLastUsed = -1.0;
 // ====[ PLUGIN ]==============================================================
 new Handle:hCUpdater = INVALID_HANDLE;
 new EngineVersion:EVGame;
@@ -49,6 +54,7 @@ public OnPluginStart()
 	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	LoadFilterConfig();
 	EVGame = GetEngineVersion();
+	AddCommandListener(ST_CommandListener);
 }
 
 public OnPluginEnd()
@@ -62,6 +68,11 @@ public OnPluginEnd()
 	ClearArray(ConfigArray);
 }
 
+public Action:CommandListener(client, const String:command[], argc) {
+	clientLastUsed = client;
+	timeLastUsed = GetGameTime();
+}
+
 // ====[ Filter Event ]========================================================
 public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 	new FilterArray[FilterData];
@@ -71,7 +82,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 			break;
 		}
 	}
-	new bool:bOpposite = ((StrContains(strPattern, "!") != -1) || FilterArray[Invert]) ? true : false;
+	new bool:bOpposite = (strPattern[1] == "!" || FilterArray[Invert]) ? true : false;
 	new bool:PlayerMatchesCriteria;
 
 	/* Used for stored all players, and getting random players that match certain criteria. */
@@ -80,9 +91,24 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 	if(FilterArray[Rnd]) {
 		hPlayers = CreateArray();
 	}
+	
+	new oneplayer = FilterArray[Self];
+	new client = -1;
+	if(oneplayer > 0) {
+		client = FindIssuer();
+		if(client > 0 && oneplayer == 2) {
+			client = GetClientAimTarget(client);
+		}
+	}
 
 	for(new i = 1; i <= MaxClients; i ++) {
 		if(!IsClientInGame(i)) continue;
+		
+		if(client > 0) {
+			if(bOpposite && i == client) continue;
+			if(!bOpposite && i != client) continue;
+		}
+		
 		PlayerMatchesCriteria = true;
 		//Filter Checks
 		//Bots
@@ -125,8 +151,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 
 		if(PlayerMatchesCriteria) {
 			if(rndPlayers) {
-				
-				PrintToChatAll("hPlayers: %N - %i", i, PushArrayCell(hPlayers, i));
+				PushArrayCell(hPlayers, i);
 			} else {
 				PushArrayCell(hClients, i);
 			}
@@ -146,9 +171,15 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 		}
 	}
 	
-	return true;
+	return (GetArraySize(hClients) > 0);
 }
 
+public FindIssuer() {
+	if(GetGameTime() < timeLastUsed+1.0) {
+		return clientLastUsed;
+	}
+	return -1;
+}
 
 // ====[ Config Functions ]====================================================
 public LoadFilterConfig() {
@@ -175,6 +206,7 @@ public LoadFilterConfig() {
 		FilterArray[Rnd] = 		KvGetNum(kv, "random", 0);
 		//FilterArray[Prem] = 	KvGetNum(kv, "premium", -1);
 		FilterArray[Invert] = 	KvGetNum(kv, "invert", 0);
+		FilterArray[Self] = 	KvGetNum(kv, "self", 0); // 0 - Disable, 1 - Self, 2 - Aim
 		KvGetString(kv, "flag", sText, 8, "");
 		if(!StrEqual(sText, "", false))
 		{
