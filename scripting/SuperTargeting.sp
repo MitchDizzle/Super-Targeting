@@ -11,8 +11,7 @@
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.3.5"
-
+#define PLUGIN_VERSION "1.3.6"
 // ====[ CONFIG ]==============================================================
 new Handle:ConfigArray = INVALID_HANDLE;
 enum FilterData
@@ -24,9 +23,11 @@ enum FilterData
 	Bots,
 	Cond,
 	Flag,
-	bool:OnlyFlag
+	bool:OnlyFlag,
+	Rnd,
+	Invert
 };
-
+#define FA_MAX 		33
 // ====[ PLUGIN ]==============================================================
 new Handle:hCUpdater = INVALID_HANDLE;
 new EngineVersion:EVGame;
@@ -62,65 +63,96 @@ public OnPluginEnd()
 }
 
 // ====[ Filter Event ]========================================================
-public bool:FilterClasses(const String:strPattern[], Handle:hClients)
-{
+public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 	new FilterArray[FilterData];
-	for(new i = 0; i < GetArraySize(ConfigArray); i++)
-	{
+	for(new i = 0; i < GetArraySize(ConfigArray); i++) {
 		GetArrayArray(ConfigArray, i, FilterArray[0]);
-		if(StrEqual(FilterArray[Filter], strPattern))
+		if(StrEqual(FilterArray[Filter], strPattern)) {
 			break;
+		}
 	}
-	new bool:bOpposite = (StrContains(strPattern, "!") != -1) ? true : false;
+	new bool:bOpposite = ((StrContains(strPattern, "!") != -1) || FilterArray[Invert]) ? true : false;
 	new bool:PlayerMatchesCriteria;
-	for(new i = 1; i <= MaxClients; i ++) if(IsClientInGame(i))
-	{
+
+	/* Used for stored all players, and getting random players that match certain criteria. */
+	new Handle:hPlayers = INVALID_HANDLE;
+	new rndPlayers = FilterArray[Rnd];
+	if(FilterArray[Rnd]) {
+		hPlayers = CreateArray();
+	}
+
+	for(new i = 1; i <= MaxClients; i ++) {
+		if(!IsClientInGame(i)) continue;
 		PlayerMatchesCriteria = true;
 		//Filter Checks
 		//Bots
-		if( FilterArray[Bots] > -1 && bool:FilterArray[Bots] != IsFakeClient(i) )
+		if(FilterArray[Bots] > -1 && bool:FilterArray[Bots] != IsFakeClient(i) ) {
 			PlayerMatchesCriteria = false;
+		}
 
 		//Alive			
-		if( FilterArray[Alive] > -1 && bool:FilterArray[Alive] != IsPlayerAlive(i) )
+		if(FilterArray[Alive] > -1 && bool:FilterArray[Alive] != IsPlayerAlive(i) ) {
 			PlayerMatchesCriteria = false;
+		}
 
 		//Class
-		if( FilterArray[Class] != 0 )
-		{
-			if( Is_iPlayerClass() && GetEntProp(i, Prop_Send, "m_iPlayerClass") != FilterArray[Class] )
+		if(FilterArray[Class] != 0 ) {
+			if(Is_iPlayerClass() && GetEntProp(i, Prop_Send, "m_iPlayerClass") != FilterArray[Class])
 				PlayerMatchesCriteria = false;
-			if( Is_iClass() && GetEntProp(i, Prop_Send, "m_iClass") != FilterArray[Class] )
+			if(Is_iClass() && GetEntProp(i, Prop_Send, "m_iClass") != FilterArray[Class])
 				PlayerMatchesCriteria = false;
 		}
+
 		//Team
-		if( FilterArray[Team] != 0 && GetClientTeam(i) != FilterArray[Team] )
+		if(FilterArray[Team] != 0 && GetClientTeam(i) != FilterArray[Team]) {
 			PlayerMatchesCriteria = false;
+		}
+
 		//TF2: Conditions
-		if( EVGame == Engine_TF2 && FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond]) )
+		if(EVGame == Engine_TF2 && FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond])) {
 			PlayerMatchesCriteria = false;
-		//TF2: Premium
+		}
 
 		//Flags
-		if( FilterArray[Flag] != 0 )
-		{
-			if( !FilterArray[OnlyFlag] && !( GetUserFlagBits(i) & FilterArray[Flag] ) )
+		if(FilterArray[Flag] != 0 ) {
+			if((!FilterArray[OnlyFlag] && !(GetUserFlagBits(i) & FilterArray[Flag])) || 
+				(FilterArray[OnlyFlag] && !(GetUserFlagBits(i) == FilterArray[Flag]))) {
 				PlayerMatchesCriteria = false;
-			if( FilterArray[OnlyFlag] && !( GetUserFlagBits(i) == FilterArray[Flag] ) )
-				PlayerMatchesCriteria = false;
+			}
 		}
-		
-		if( bOpposite ) PlayerMatchesCriteria = !PlayerMatchesCriteria;
-		if( PlayerMatchesCriteria ) PushArrayCell(hClients, i);
+
+		if(bOpposite) PlayerMatchesCriteria = !PlayerMatchesCriteria;
+
+		if(PlayerMatchesCriteria) {
+			if(rndPlayers) {
+				
+				PrintToChatAll("hPlayers: %N - %i", i, PushArrayCell(hPlayers, i));
+			} else {
+				PushArrayCell(hClients, i);
+			}
+		}
 	}
+	
+	if(rndPlayers) {
+		new rndCell, rndPlayer = -1;
+		new plySize = GetArraySize(hPlayers);
+		while(rndPlayers > 0 && plySize > 0) {
+			rndCell = GetRandomInt(0, plySize-1);
+			rndPlayer = GetArrayCell(hPlayers, rndCell);
+			PushArrayCell(hClients, rndPlayer);
+			RemoveFromArray(hPlayers, rndCell);
+			plySize = GetArraySize(hPlayers);
+			rndPlayers--;
+		}
+	}
+	
 	return true;
 }
 
 
 // ====[ Config Functions ]====================================================
-public LoadFilterConfig()
-{
-	ConfigArray = CreateArray(31); // 24 + 1 + 1 + 1 + 1 + 1 + 1
+public LoadFilterConfig() {
+	ConfigArray = CreateArray(FA_MAX);
 	decl String:sPaths[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/SuperTargeting.cfg");
 	new Handle:kv = CreateKeyValues("SuperTargeting");
@@ -140,14 +172,15 @@ public LoadFilterConfig()
 		FilterArray[Alive] = 	KvGetNum(kv, "alive", -1);
 		FilterArray[Bots] = 	KvGetNum(kv, "bots", -1);
 		FilterArray[Cond] = 	KvGetNum(kv, "cond", -1);
+		FilterArray[Rnd] = 		KvGetNum(kv, "random", 0);
 		//FilterArray[Prem] = 	KvGetNum(kv, "premium", -1);
+		FilterArray[Invert] = 	KvGetNum(kv, "invert", 0);
 		KvGetString(kv, "flag", sText, 8, "");
 		if(!StrEqual(sText, "", false))
 		{
 			FilterArray[OnlyFlag] = (StrContains(sText, "#") != -1) ? true : false;
 			ReplaceString(sText, sizeof(sText), "#", "");
 			FilterArray[Flag] = ReadFlagString(sText);
-			//PrintToChatAll("%s : %i", sText, FilterArray[Flag]);
 		}
 		PushArrayArray(ConfigArray, FilterArray[0]);
 	} while(KvGotoNextKey(kv));
@@ -156,7 +189,7 @@ public LoadFilterConfig()
 }
 
 // ====[ Updater ]=============================================================
-#define UPDATE_URL "http://bitbucket.snbx.info/super-targeting/raw/master/supertargeting.txt"
+#define UPDATE_URL "https://bitbucket.org/MitchDizzle/super-targeting/raw/master/supertargeting.txt"
 public OnAllPluginsLoaded() {
 	if (LibraryExists("updater"))
 		Updater_AddPlugin(UPDATE_URL);
