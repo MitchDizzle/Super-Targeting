@@ -4,10 +4,10 @@
 	{
 		"Version"
 		{
-			"Latest"	"1.3.5"
+			"Latest"	"1.3.61"
 		}
-		"Notes"	"Added flag checking."
-		"Notes" "Be sure to check out SuperTargeting.SnBx.info for more infomation."
+		"Notes"	"Removed debug message from random flags"
+		"Notes" "Be sure to check out SuperTargeting.mtch.tech for more infomation."
 	}
 	
 	"Files"

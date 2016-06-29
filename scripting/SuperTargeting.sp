@@ -11,7 +11,7 @@
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.3.6"
+#define PLUGIN_VERSION "1.3.61"
 // ====[ CONFIG ]==============================================================
 new Handle:ConfigArray = INVALID_HANDLE;
 enum FilterData
@@ -125,8 +125,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 
 		if(PlayerMatchesCriteria) {
 			if(rndPlayers) {
-				
-				PrintToChatAll("hPlayers: %N - %i", i, PushArrayCell(hPlayers, i));
+				PushArrayCell(hPlayers, i);
 			} else {
 				PushArrayCell(hClients, i);
 			}
