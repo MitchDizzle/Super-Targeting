@@ -11,35 +11,36 @@
 
 // ====[ DEFINES ]=============================================================
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.4.0"
+#define PLUGIN_VERSION "1.4.1"
 
 // ====[ CONFIG ]==============================================================
-new Handle:ConfigArray = INVALID_HANDLE;
-enum FilterData
-{
-	String:Filter[24],
-	Team,
-	Class,
-	Alive,
-	Bots,
-	Cond,
-	Flag,
-	bool:OnlyFlag,
-	Rnd,
-	Invert,
-	Self
-};
-#define FA_MAX 		34
+#define MAXFILTERS 500
+StringMap filterMap;
+int maxFilters;
+char fltKey[MAXFILTERS][24];
+int fltTeam[MAXFILTERS];
+int fltClass[MAXFILTERS];
+int fltAlive[MAXFILTERS];
+int fltBots[MAXFILTERS];
+int fltCond[MAXFILTERS];
+int fltFlag[MAXFILTERS];
+bool fltOnlyFlag[MAXFILTERS];
+int fltRnd[MAXFILTERS];
+int fltNeg[MAXFILTERS];
+int fltSelf[MAXFILTERS];
+
 // ====[ PLAYER ]==============================================================
-new clientLastUsed = -1;
-new Float:timeLastUsed = -1.0;
+int clientLastUsed = -1;
+float timeLastUsed = -1.0;
+
 // ====[ PLUGIN ]==============================================================
-new Handle:hCUpdater = INVALID_HANDLE;
-new EngineVersion:EVGame;
+ConVar hCUpdater;
+EngineVersion EVGame;
+
 #define Is_iClass() (EVGame == Engine_TF2)
 #define Is_iPlayerClass() (EVGame == Engine_DODS || EVGame == Engine_Left4Dead || EVGame == Engine_Left4Dead2)
-public Plugin:myinfo =
-{
+
+public Plugin:myinfo = {
 	name = "Super Target Filters",
 	author = "Mitch",
 	description = "Addition to the classes server owners can now define new target filters based on classes, teams, etc.",
@@ -57,43 +58,39 @@ public OnPluginStart()
 	AddCommandListener(ST_CommandListener);
 }
 
-public OnPluginEnd()
-{
-	new FilterArray[FilterData];
-	for(new i = 0; i < GetArraySize(ConfigArray); i++)
-	{
-		GetArrayArray(ConfigArray, i, FilterArray[0]);
-		RemoveMultiTargetFilter(FilterArray[Filter], FilterClasses);
+public OnPluginEnd() {
+	for(int k = 0; k < maxFilters; k++) {
+		RemoveMultiTargetFilter(fltKey[k], FilterClasses);
 	}
-	ClearArray(ConfigArray);
+	delete filterMap;
 }
 
-public Action:CommandListener(client, const String:command[], argc) {
+public Action ST_CommandListener(int client, const char[] command, int argc) {
 	clientLastUsed = client;
 	timeLastUsed = GetGameTime();
 }
 
 // ====[ Filter Event ]========================================================
-public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
-	new FilterArray[FilterData];
-	for(new i = 0; i < GetArraySize(ConfigArray); i++) {
-		GetArrayArray(ConfigArray, i, FilterArray[0]);
-		if(StrEqual(FilterArray[Filter], strPattern)) {
-			break;
-		}
-	}
-	new bool:bOpposite = (strPattern[1] == "!" || FilterArray[Invert]) ? true : false;
-	new bool:PlayerMatchesCriteria;
-
-	/* Used for stored all players, and getting random players that match certain criteria. */
-	new Handle:hPlayers = INVALID_HANDLE;
-	new rndPlayers = FilterArray[Rnd];
-	if(FilterArray[Rnd]) {
-		hPlayers = CreateArray();
+public bool FilterClasses(const char[] strPattern, Handle hClients) {
+	//Get key
+	int k = -1;
+	if(!GetTrieValue(filterMap, strPattern, k) || k == -1) {
+		//Pattern is not found within the trie
+		return false;
 	}
 	
-	new oneplayer = FilterArray[Self];
-	new client = -1;
+	bool bOpposite = (StrContains(strPattern,"!") == 1 || fltNeg[k]);
+	bool PlayerMatchesCriteria;
+
+	/* Used for stored all players, and getting random players that match certain criteria. */
+	ArrayList hPlayers;
+	int rndPlayers = fltRnd[k];
+	if(rndPlayers) {
+		hPlayers = new ArrayList();
+	}
+	
+	int oneplayer = fltSelf[k];
+	int client = -1;
 	if(oneplayer > 0) {
 		client = FindIssuer();
 		if(client > 0 && oneplayer == 2) {
@@ -101,7 +98,7 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 		}
 	}
 
-	for(new i = 1; i <= MaxClients; i ++) {
+	for(int i = 1; i <= MaxClients; i ++) {
 		if(!IsClientInGame(i)) continue;
 		
 		if(client > 0) {
@@ -112,42 +109,45 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 		PlayerMatchesCriteria = true;
 		//Filter Checks
 		//Bots
-		if(FilterArray[Bots] > -1 && bool:FilterArray[Bots] != IsFakeClient(i) ) {
+		if(fltBots[k] > -1 && ((fltBots[k] == 1) != IsFakeClient(i))) {
 			PlayerMatchesCriteria = false;
 		}
 
-		//Alive			
-		if(FilterArray[Alive] > -1 && bool:FilterArray[Alive] != IsPlayerAlive(i) ) {
+		//Alive
+		if(fltAlive[k] > -1 && ((fltAlive[k] == 1) != IsPlayerAlive(i))) {
 			PlayerMatchesCriteria = false;
 		}
 
 		//Class
-		if(FilterArray[Class] != 0 ) {
-			if(Is_iPlayerClass() && GetEntProp(i, Prop_Send, "m_iPlayerClass") != FilterArray[Class])
+		if(fltClass[k] != 0 ) {
+			if(Is_iPlayerClass() && GetEntProp(i, Prop_Send, "m_iPlayerClass") != fltClass[k]) {
 				PlayerMatchesCriteria = false;
-			if(Is_iClass() && GetEntProp(i, Prop_Send, "m_iClass") != FilterArray[Class])
-				PlayerMatchesCriteria = false;
-		}
-
-		//Team
-		if(FilterArray[Team] != 0 && GetClientTeam(i) != FilterArray[Team]) {
-			PlayerMatchesCriteria = false;
-		}
-
-		//TF2: Conditions
-		if(EVGame == Engine_TF2 && FilterArray[Cond] != -1 && !TF2_IsPlayerInCondition(i, TFCond:FilterArray[Cond])) {
-			PlayerMatchesCriteria = false;
-		}
-
-		//Flags
-		if(FilterArray[Flag] != 0 ) {
-			if((!FilterArray[OnlyFlag] && !(GetUserFlagBits(i) & FilterArray[Flag])) || 
-				(FilterArray[OnlyFlag] && !(GetUserFlagBits(i) == FilterArray[Flag]))) {
+			} else if(Is_iClass() && GetEntProp(i, Prop_Send, "m_iClass") != fltClass[k]) {
 				PlayerMatchesCriteria = false;
 			}
 		}
 
-		if(bOpposite) PlayerMatchesCriteria = !PlayerMatchesCriteria;
+		//Team
+		if(fltTeam[k] != 0 && GetClientTeam(i) != fltTeam[k]) {
+			PlayerMatchesCriteria = false;
+		}
+
+		//TF2: Conditions
+		if(EVGame == Engine_TF2 && fltCond[k] != -1 && !TF2_IsPlayerInCondition(i, TFCond:fltCond[k])) {
+			PlayerMatchesCriteria = false;
+		}
+
+		//Flags
+		if(fltFlag[k] != 0 ) {
+			if((!fltOnlyFlag[k] && !(GetUserFlagBits(i) & fltFlag[k])) || 
+				(fltOnlyFlag[k] && !(GetUserFlagBits(i) == fltFlag[k]))) {
+				PlayerMatchesCriteria = false;
+			}
+		}
+
+		if(bOpposite) {
+			PlayerMatchesCriteria = !PlayerMatchesCriteria;
+		}
 
 		if(PlayerMatchesCriteria) {
 			if(rndPlayers) {
@@ -159,8 +159,9 @@ public bool:FilterClasses(const String:strPattern[], Handle:hClients) {
 	}
 	
 	if(rndPlayers) {
-		new rndCell, rndPlayer = -1;
-		new plySize = GetArraySize(hPlayers);
+		int rndCell;
+		int rndPlayer = -1;
+		int plySize = GetArraySize(hPlayers);
 		while(rndPlayers > 0 && plySize > 0) {
 			rndCell = GetRandomInt(0, plySize-1);
 			rndPlayer = GetArrayCell(hPlayers, rndCell);
@@ -183,40 +184,52 @@ public FindIssuer() {
 
 // ====[ Config Functions ]====================================================
 public LoadFilterConfig() {
-	ConfigArray = CreateArray(FA_MAX);
-	decl String:sPaths[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/SuperTargeting.cfg");
-	new Handle:kv = CreateKeyValues("SuperTargeting");
-	FileToKeyValues(kv, sPaths);
-	if (!KvGotoFirstSubKey(kv))
-		return;
+	filterMap = new StringMap();
 	
-	new FilterArray[FilterData];
-	decl String:sText[32];
-	do
-	{
-		KvGetSectionName(kv, FilterArray[Filter], 24);
-		KvGetString(kv, "text", sText, 32, "TOOLTIP MISSING");
-		AddMultiTargetFilter(FilterArray[Filter], FilterClasses, sText, false);
-		FilterArray[Team] = 	KvGetNum(kv, "team", 0);
-		FilterArray[Class] = 	KvGetNum(kv, "class", 0);
-		FilterArray[Alive] = 	KvGetNum(kv, "alive", -1);
-		FilterArray[Bots] = 	KvGetNum(kv, "bots", -1);
-		FilterArray[Cond] = 	KvGetNum(kv, "cond", -1);
-		FilterArray[Rnd] = 		KvGetNum(kv, "random", 0);
-		//FilterArray[Prem] = 	KvGetNum(kv, "premium", -1);
-		FilterArray[Invert] = 	KvGetNum(kv, "invert", 0);
-		FilterArray[Self] = 	KvGetNum(kv, "self", 0); // 0 - Disable, 1 - Self, 2 - Aim
-		KvGetString(kv, "flag", sText, 8, "");
-		if(!StrEqual(sText, "", false))
-		{
-			FilterArray[OnlyFlag] = (StrContains(sText, "#") != -1) ? true : false;
-			ReplaceString(sText, sizeof(sText), "#", "");
-			FilterArray[Flag] = ReadFlagString(sText);
+	char sPaths[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/SuperTargeting.cfg");
+	KeyValues kv = CreateKeyValues("SuperTargeting");
+	FileToKeyValues(kv, sPaths);
+	
+	if (!KvGotoFirstSubKey(kv)) {
+		return;
+	}
+	
+	char sText[64];
+	int k; // Represents the current id for simplicity
+	do {
+		k = maxFilters;
+		
+		KvGetSectionName(kv, fltKey[k], 24);
+		if(StrEqual(fltKey[k], "")) {
+			//Continue to the next filter if this is invalid.
+			continue;
 		}
-		PushArrayArray(ConfigArray, FilterArray[0]);
+		//Add to filter map.
+		filterMap.SetValue(fltKey[k], maxFilters);
+
+		KvGetString(kv, "text", sText, 32, "TOOL TIP MISSING");
+		AddMultiTargetFilter(fltKey[k], FilterClasses, sText, false);
+		
+		fltTeam[k] = 	KvGetNum(kv, "team", 0);
+		fltClass[k] = 	KvGetNum(kv, "class", 0);
+		fltAlive[k] = 	KvGetNum(kv, "alive", -1);
+		fltBots[k] = 	KvGetNum(kv, "bots", -1);
+		fltCond[k] = 	KvGetNum(kv, "cond", -1);
+		fltRnd[k] = 	KvGetNum(kv, "random", 0);
+		//fltPrem[k] = 	KvGetNum(kv, "premium", -1);
+		fltNeg[k] = 	KvGetNum(kv, "invert", 0);
+		fltSelf[k] = 	KvGetNum(kv, "self", 0); // 0 - Disable, 1 - Self, 2 - Aim
+		//Get Flags
+		KvGetString(kv, "flag", sText, 8, "");
+		if(!StrEqual(sText, "", false)) {
+			fltOnlyFlag[k] = (StrContains(sText, "#") != -1) ? true : false;
+			ReplaceString(sText, sizeof(sText), "#", "");
+			fltFlag[k] = ReadFlagString(sText);
+		}		
+		maxFilters++; //Increase the amount of filters
 	} while(KvGotoNextKey(kv));
-	CloseHandle(kv);
+	delete kv;
 	return;
 }
 
