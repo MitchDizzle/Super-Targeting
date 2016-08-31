@@ -1,12 +1,10 @@
-// ====[ INCLUDES ]============================================================
 #undef REQUIRE_EXTENSIONS
 #include <tf2_stocks>
-
 #undef REQUIRE_PLUGIN
 #include <updater>
-
 #pragma semicolon 1
 #pragma newdecls required
+
 #define PLUGIN_NAME "Super Target Filters"
 #define PLUGIN_VERSION "1.4.11"
 
@@ -39,9 +37,9 @@ public Plugin myinfo = {
 }
 
 public void OnPluginStart() {
-	hCUpdater = CreateConVar("sm_supertargeting_update", "1", "(0/1) Enable automatic updating?"); // Removed FCVAR_PLUGIN, it's deprecated, don't use it
+	hCUpdater = CreateConVar("sm_supertargeting_update", "1", "(0/1) Enable automatic updating?");
 	AutoExecConfig();
-	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY); // Same as above, removed FCVAR_PLUGIN
+	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	LoadFilterConfig();
 	AddCommandListener(ST_CommandListener);
 }
@@ -210,7 +208,6 @@ public void LoadFilterConfig() {
 	}
 	delete kv;
 }
-// ====[ Updater ]=============================================================
 #define UPDATE_URL "https://bitbucket.org/MitchDizzle/super-targeting/raw/master/supertargeting.txt"
 public void OnAllPluginsLoaded() {
 	if (LibraryExists("updater")) {
