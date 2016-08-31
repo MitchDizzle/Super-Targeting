@@ -159,7 +159,7 @@ public int GetPlayerClass(int client) {
 			} else if(FindSendPropOffs(netClassName, "m_iClass") != -1) {
 				propertyClass = "m_iClass";
 			} else {
-				ThrowError("Unable to find Player class netprop, Engine is not support for the class filter.");
+				ThrowError("Unable to find Player Class netprop, Engine does not support the class filter.");
 			}
 		}
 	}
