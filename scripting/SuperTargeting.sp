@@ -1,19 +1,15 @@
-#pragma semicolon 1
-
 // ====[ INCLUDES ]============================================================
-#include <sourcemod>
-
 #undef REQUIRE_EXTENSIONS
 #include <tf2_stocks>
 
 #undef REQUIRE_PLUGIN
 #include <updater>
 
-// ====[ DEFINES ]=============================================================
+#pragma semicolon 1
+#pragma newdecls required
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.4.1"
+#define PLUGIN_VERSION "1.4.11"
 
-// ====[ CONFIG ]==============================================================
 #define MAXFILTERS 500
 StringMap filterMap;
 int maxFilters;
@@ -29,36 +25,28 @@ int fltRnd[MAXFILTERS];
 int fltNeg[MAXFILTERS];
 int fltSelf[MAXFILTERS];
 
-// ====[ PLAYER ]==============================================================
 int clientLastUsed = -1;
 float timeLastUsed = -1.0;
 
-// ====[ PLUGIN ]==============================================================
 ConVar hCUpdater;
-EngineVersion EVGame;
 
-#define Is_iClass() (EVGame == Engine_TF2)
-#define Is_iPlayerClass() (EVGame == Engine_DODS || EVGame == Engine_Left4Dead || EVGame == Engine_Left4Dead2)
-
-public Plugin:myinfo = {
+public Plugin myinfo = {
 	name = "Super Target Filters",
 	author = "Mitch",
 	description = "Addition to the classes server owners can now define new target filters based on classes, teams, etc.",
 	version = PLUGIN_VERSION,
 	url = "https://bitbucket.org/MitchDizzle/super-targeting/"
 }
-// ====[ EVENTS ]==============================================================
-public OnPluginStart()
-{
-	hCUpdater = CreateConVar("sm_supertargeting_update", "1", "(0/1) Enable automatic updating?", FCVAR_PLUGIN);
+
+public void OnPluginStart() {
+	hCUpdater = CreateConVar("sm_supertargeting_update", "1", "(0/1) Enable automatic updating?"); // Removed FCVAR_PLUGIN, it's deprecated, don't use it
 	AutoExecConfig();
-	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_PLUGIN | FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
+	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY); // Same as above, removed FCVAR_PLUGIN
 	LoadFilterConfig();
-	EVGame = GetEngineVersion();
 	AddCommandListener(ST_CommandListener);
 }
 
-public OnPluginEnd() {
+public void OnPluginEnd() {
 	for(int k = 0; k < maxFilters; k++) {
 		RemoveMultiTargetFilter(fltKey[k], FilterClasses);
 	}
@@ -70,184 +58,173 @@ public Action ST_CommandListener(int client, const char[] command, int argc) {
 	timeLastUsed = GetGameTime();
 }
 
-// ====[ Filter Event ]========================================================
-public bool FilterClasses(const char[] strPattern, Handle hClients) {
-	//Get key
-	int k = -1;
-	if(!GetTrieValue(filterMap, strPattern, k) || k == -1) {
-		//Pattern is not found within the trie
-		return false;
+/* Target filter callback */
+public bool FilterClasses(const char[] pattern, Handle clients) {
+	ArrayList alClients = getClientsFromPattern(pattern);
+	for(int i = 0; i < alClients.Length; i++) {
+		PushArrayCell(clients, alClients.Get(i));
 	}
-	
-	bool bOpposite = (StrContains(strPattern,"!") == 1 || fltNeg[k]);
-	bool PlayerMatchesCriteria;
+	return alClients.Length > 0;
+}
 
-	/* Used for stored all players, and getting random players that match certain criteria. */
-	ArrayList hPlayers;
-	int rndPlayers = fltRnd[k];
-	if(rndPlayers) {
-		hPlayers = new ArrayList();
+/* Method to gather all the clients that match the filter. */
+public ArrayList getClientsFromPattern(const char[] pattern) {
+	ArrayList alClients = new ArrayList();
+	
+	/* Get filter key from pattern */
+	int k = -1;
+	if(!filterMap.GetValue(pattern, k) || k == -1) {
+		/* Pattern is not found within the trie */
+		return alClients;
 	}
 	
-	int oneplayer = fltSelf[k];
+	bool reverse = (StrContains(pattern,"!") == 1 || fltNeg[k]);
+
 	int client = -1;
-	if(oneplayer > 0) {
-		client = FindIssuer();
-		if(client > 0 && oneplayer == 2) {
+	if(fltSelf[k] > 0) {
+		client = (GetGameTime() < timeLastUsed + 1.0) ? clientLastUsed : -1;
+		if(client > 0 && fltSelf[k] == 2) {
 			client = GetClientAimTarget(client);
 		}
 	}
 
-	for(int i = 1; i <= MaxClients; i ++) {
-		if(!IsClientInGame(i)) continue;
-		
-		if(client > 0) {
-			if(bOpposite && i == client) continue;
-			if(!bOpposite && i != client) continue;
+	if(client > 0 && !reverse) {
+		/* we have a single client being targeted */
+		if(filterCheck(client, k) ^ reverse) {
+			alClients.Push(client);
 		}
-		
-		PlayerMatchesCriteria = true;
-		//Filter Checks
-		//Bots
-		if(fltBots[k] > -1 && ((fltBots[k] == 1) != IsFakeClient(i))) {
-			PlayerMatchesCriteria = false;
-		}
+	} else {
+		/* We have more than one client that can be targeted */
+		for(int i = 1; i <= MaxClients; i ++) {
+			if(!IsClientInGame(i)) continue;
+			
+			/* ignore the client that issued the command, or is being targeted */
+			if(client > 0 && reverse && i == client) {
+				continue;
+			}
 
-		//Alive
-		if(fltAlive[k] > -1 && ((fltAlive[k] == 1) != IsPlayerAlive(i))) {
-			PlayerMatchesCriteria = false;
-		}
-
-		//Class
-		if(fltClass[k] != 0 ) {
-			if(Is_iPlayerClass() && GetEntProp(i, Prop_Send, "m_iPlayerClass") != fltClass[k]) {
-				PlayerMatchesCriteria = false;
-			} else if(Is_iClass() && GetEntProp(i, Prop_Send, "m_iClass") != fltClass[k]) {
-				PlayerMatchesCriteria = false;
+			if(filterCheck(i, k) ^ reverse) {
+				alClients.Push(i);
 			}
 		}
+	}
 
-		//Team
-		if(fltTeam[k] != 0 && GetClientTeam(i) != fltTeam[k]) {
-			PlayerMatchesCriteria = false;
+	if(fltRnd[k] > 0) {
+		/* Remove a random player until the alClients matches the fltRnd value */
+		while(alClients.Length > fltRnd[k]) {
+			alClients.Erase(GetRandomInt(0, alClients.Length-1));
 		}
+	}
+	return alClients;
+}
 
-		//TF2: Conditions
-		if(EVGame == Engine_TF2 && fltCond[k] != -1 && !TF2_IsPlayerInCondition(i, TFCond:fltCond[k])) {
-			PlayerMatchesCriteria = false;
+/* Filter checks for the client */
+public bool filterCheck(int client, int filter) {
+	//Bots
+	if(fltBots[filter] > -1 && IsFakeClient(client) != (fltBots[filter] != 0)) {
+		return false;
+	}
+	//Alive
+	if(fltAlive[filter] > -1 && IsPlayerAlive(client) != (fltAlive[filter] != 0)) {
+		return false;
+	}
+	//Class
+	if(fltClass[filter] > 0 && GetPlayerClass(client) != fltClass[filter]) {
+		return false;
+	}
+	//Team
+	if(fltTeam[filter] > 0 && GetClientTeam(client) != fltTeam[filter]) {
+		return false;
+	}
+	//TF2: Conditions
+	if(fltCond[filter] > -1 && !TF2_IsPlayerInCondition(client, view_as<TFCond>(fltCond[filter]))) {
+		return false;
+	}
+	//Admin Flags
+	if(fltFlag[filter] > 0) {
+		if((!fltOnlyFlag[filter] && !(GetUserFlagBits(client) &  fltFlag[filter])) || 
+			(fltOnlyFlag[filter] && !(GetUserFlagBits(client) == fltFlag[filter]))) {
+			return false;
 		}
+	}
+	return true;
+}
 
-		//Flags
-		if(fltFlag[k] != 0 ) {
-			if((!fltOnlyFlag[k] && !(GetUserFlagBits(i) & fltFlag[k])) || 
-				(fltOnlyFlag[k] && !(GetUserFlagBits(i) == fltFlag[k]))) {
-				PlayerMatchesCriteria = false;
-			}
-		}
-
-		if(bOpposite) {
-			PlayerMatchesCriteria = !PlayerMatchesCriteria;
-		}
-
-		if(PlayerMatchesCriteria) {
-			if(rndPlayers) {
-				PushArrayCell(hPlayers, i);
+/* Gets the player's current class, since the netprop can change between engines we should try and find it */
+public int GetPlayerClass(int client) {
+	static char propertyClass[32];
+	if(StrEqual(propertyClass, "")) {
+		char netClassName[32];
+		if(GetEntityNetClass(client, netClassName, sizeof(netClassName))) {
+			if(FindSendPropOffs(netClassName, "m_iPlayerClass") != -1) {
+				propertyClass = "m_iPlayerClass";
+			} else if(FindSendPropOffs(netClassName, "m_iClass") != -1) {
+				propertyClass = "m_iClass";
 			} else {
-				PushArrayCell(hClients, i);
+				ThrowError("Unable to find Player class netprop, Engine is not support for the class filter.");
 			}
 		}
 	}
-	
-	if(rndPlayers) {
-		int rndCell;
-		int rndPlayer = -1;
-		int plySize = GetArraySize(hPlayers);
-		while(rndPlayers > 0 && plySize > 0) {
-			rndCell = GetRandomInt(0, plySize-1);
-			rndPlayer = GetArrayCell(hPlayers, rndCell);
-			PushArrayCell(hClients, rndPlayer);
-			RemoveFromArray(hPlayers, rndCell);
-			plySize = GetArraySize(hPlayers);
-			rndPlayers--;
-		}
-	}
-	
-	return (GetArraySize(hClients) > 0);
+	return GetEntProp(client, Prop_Send, propertyClass);
 }
 
-public FindIssuer() {
-	if(GetGameTime() < timeLastUsed+1.0) {
-		return clientLastUsed;
-	}
-	return -1;
-}
-
-// ====[ Config Functions ]====================================================
-public LoadFilterConfig() {
+/* Load filters from SuperTargeting config */
+public void LoadFilterConfig() {
 	filterMap = new StringMap();
-	
 	char sPaths[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/SuperTargeting.cfg");
-	KeyValues kv = CreateKeyValues("SuperTargeting");
-	FileToKeyValues(kv, sPaths);
-	
-	if (!KvGotoFirstSubKey(kv)) {
-		return;
+	KeyValues kv = new KeyValues("SuperTargeting");
+	kv.ImportFromFile(sPaths);
+	if(kv.GotoFirstSubKey()) {
+		char sText[64];
+		int k; // Represents the current id for simplicity
+		do {
+			k = maxFilters;
+			kv.GetSectionName(fltKey[k], 24);
+			if(StrEqual(fltKey[k], "")) { //Continue to the next filter if this is invalid.
+				continue;
+			}
+			//Add to filter map.
+			filterMap.SetValue(fltKey[k], maxFilters);
+
+			kv.GetString("text", sText, 32, "TOOL TIP MISSING");
+			AddMultiTargetFilter(fltKey[k], FilterClasses, sText, false);
+
+			fltTeam[k] = kv.GetNum("team", -1);
+			fltClass[k] = kv.GetNum("class", -1);
+			fltAlive[k] = kv.GetNum("alive", -1);
+			fltBots[k] = kv.GetNum("bots", -1);
+			fltCond[k] = kv.GetNum("cond", -1);
+			fltRnd[k] = kv.GetNum("random", 0);
+			fltNeg[k] = kv.GetNum("invert", 0);
+			fltSelf[k] = kv.GetNum("self", 0); // 0 - Disable, 1 - Self, 2 - Aim
+			//Get Flags
+			kv.GetString("flag", sText, 8, "");
+			if(!StrEqual(sText, "", false)) {
+				fltOnlyFlag[k] = (StrContains(sText, "#") != -1) ? true : false;
+				ReplaceString(sText, sizeof(sText), "#", "");
+				fltFlag[k] = ReadFlagString(sText);
+			}		
+			maxFilters++; //Increase the amount of filters
+		} while(kv.GotoNextKey());
 	}
-	
-	char sText[64];
-	int k; // Represents the current id for simplicity
-	do {
-		k = maxFilters;
-		
-		KvGetSectionName(kv, fltKey[k], 24);
-		if(StrEqual(fltKey[k], "")) {
-			//Continue to the next filter if this is invalid.
-			continue;
-		}
-		//Add to filter map.
-		filterMap.SetValue(fltKey[k], maxFilters);
-
-		KvGetString(kv, "text", sText, 32, "TOOL TIP MISSING");
-		AddMultiTargetFilter(fltKey[k], FilterClasses, sText, false);
-		
-		fltTeam[k] = 	KvGetNum(kv, "team", 0);
-		fltClass[k] = 	KvGetNum(kv, "class", 0);
-		fltAlive[k] = 	KvGetNum(kv, "alive", -1);
-		fltBots[k] = 	KvGetNum(kv, "bots", -1);
-		fltCond[k] = 	KvGetNum(kv, "cond", -1);
-		fltRnd[k] = 	KvGetNum(kv, "random", 0);
-		//fltPrem[k] = 	KvGetNum(kv, "premium", -1);
-		fltNeg[k] = 	KvGetNum(kv, "invert", 0);
-		fltSelf[k] = 	KvGetNum(kv, "self", 0); // 0 - Disable, 1 - Self, 2 - Aim
-		//Get Flags
-		KvGetString(kv, "flag", sText, 8, "");
-		if(!StrEqual(sText, "", false)) {
-			fltOnlyFlag[k] = (StrContains(sText, "#") != -1) ? true : false;
-			ReplaceString(sText, sizeof(sText), "#", "");
-			fltFlag[k] = ReadFlagString(sText);
-		}		
-		maxFilters++; //Increase the amount of filters
-	} while(KvGotoNextKey(kv));
 	delete kv;
-	return;
 }
-
 // ====[ Updater ]=============================================================
 #define UPDATE_URL "https://bitbucket.org/MitchDizzle/super-targeting/raw/master/supertargeting.txt"
-public OnAllPluginsLoaded() {
-	if (LibraryExists("updater"))
+public void OnAllPluginsLoaded() {
+	if (LibraryExists("updater")) {
 		Updater_AddPlugin(UPDATE_URL);
+	}
 }
-public OnLibraryAdded(const String:name[]) {
-	if (StrEqual(name, "updater"))
+public void OnLibraryAdded(const char[] name) {
+	if (StrEqual(name, "updater")) {
 		Updater_AddPlugin(UPDATE_URL);
+	}
 }
-public Action:Updater_OnPluginDownloading() {
-	if (GetConVarBool(hCUpdater))
-		return Plugin_Continue;
-	return Plugin_Handled;
+public Action Updater_OnPluginDownloading() {
+	return hCUpdater.BoolValue ? Plugin_Continue : Plugin_Handled;
 }
-public Updater_OnPluginUpdated() {
+public void Updater_OnPluginUpdated() {
 	ReloadPlugin();
 }
