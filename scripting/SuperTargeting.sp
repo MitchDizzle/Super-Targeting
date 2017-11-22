@@ -4,7 +4,7 @@
 #pragma newdecls required
 
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.4.2"
+#define PLUGIN_VERSION "1.5"
 
 #define MAXFILTERS 500
 StringMap filterMap;
@@ -29,7 +29,7 @@ public Plugin myinfo = {
 	author = "Mitch",
 	description = "Addition to the classes server owners can now define new target filters based on classes, teams, etc.",
 	version = PLUGIN_VERSION,
-	url = "https://bitbucket.org/MitchDizzle/super-targeting/"
+	url = "mtch.tech"
 }
 
 public void OnPluginStart() {
@@ -146,16 +146,13 @@ public bool filterCheck(int client, int filter) {
 public int GetPlayerClass(int client) {
 	static char propertyClass[32];
 	if(StrEqual(propertyClass, "")) {
-		char netClassName[32];
-		if(GetEntityNetClass(client, netClassName, sizeof(netClassName))) {
-			if(FindSendPropOffs(netClassName, "m_iPlayerClass") != -1) {
-				propertyClass = "m_iPlayerClass";
-			} else if(FindSendPropOffs(netClassName, "m_iClass") != -1) {
-				propertyClass = "m_iClass";
-			} else {
-				ThrowError("Unable to find Player Class netprop, Engine does not support the class filter.");
-			}
-		}
+        if(HasEntProp(client, Prop_Send, "m_iPlayerClass")) {
+            propertyClass = "m_iPlayerClass";
+        } else if(HasEntProp(client, Prop_Send, "m_iClass")) {
+            propertyClass = "m_iClass";
+        } else {
+            ThrowError("Unable to find Player Class netprop, Engine does not support the class filter.");
+        }
 	}
 	return GetEntProp(client, Prop_Send, propertyClass);
 }
