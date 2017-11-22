@@ -1,12 +1,10 @@
 #undef REQUIRE_EXTENSIONS
 #include <tf2_stocks>
-#undef REQUIRE_PLUGIN
-#include <updater>
 #pragma semicolon 1
 #pragma newdecls required
 
 #define PLUGIN_NAME "Super Target Filters"
-#define PLUGIN_VERSION "1.4.11"
+#define PLUGIN_VERSION "1.4.2"
 
 #define MAXFILTERS 500
 StringMap filterMap;
@@ -26,8 +24,6 @@ int fltSelf[MAXFILTERS];
 int clientLastUsed = -1;
 float timeLastUsed = -1.0;
 
-ConVar hCUpdater;
-
 public Plugin myinfo = {
 	name = "Super Target Filters",
 	author = "Mitch",
@@ -37,8 +33,6 @@ public Plugin myinfo = {
 }
 
 public void OnPluginStart() {
-	hCUpdater = CreateConVar("sm_supertargeting_update", "1", "(0/1) Enable automatic updating?");
-	AutoExecConfig();
 	CreateConVar("sm_supertargeting_version", PLUGIN_VERSION, PLUGIN_NAME, FCVAR_SPONLY | FCVAR_DONTRECORD | FCVAR_NOTIFY);
 	LoadFilterConfig();
 	AddCommandListener(ST_CommandListener);
@@ -207,21 +201,4 @@ public void LoadFilterConfig() {
 		} while(kv.GotoNextKey());
 	}
 	delete kv;
-}
-#define UPDATE_URL "https://bitbucket.org/MitchDizzle/super-targeting/raw/master/supertargeting.txt"
-public void OnAllPluginsLoaded() {
-	if (LibraryExists("updater")) {
-		Updater_AddPlugin(UPDATE_URL);
-	}
-}
-public void OnLibraryAdded(const char[] name) {
-	if (StrEqual(name, "updater")) {
-		Updater_AddPlugin(UPDATE_URL);
-	}
-}
-public Action Updater_OnPluginDownloading() {
-	return hCUpdater.BoolValue ? Plugin_Continue : Plugin_Handled;
-}
-public void Updater_OnPluginUpdated() {
-	ReloadPlugin();
 }
